@@ -43,3 +43,59 @@ def criar_documento(service):
     return document_id
 
 
+def adicionar_texto(service, document_id, texto):
+    requests = []
+
+    for texto_item, estilo in texto:
+        requests.append({
+            'insertText': {
+                'location': {
+                    'index': 1,
+                },
+                'text': texto_item + '\n',
+            }
+        })
+
+        requests.append({
+            'updateTextStyle': {
+                'range': {
+                    'startIndex': 1,
+                    'endIndex': 1 + len(texto_item),
+                },
+                'textStyle': estilo,
+                'fields': 'bold,fontSize,foregroundColor'
+            }
+        })
+
+    service.documents().batchUpdate(documentId=document_id, body={'requests': requests}).execute()
+    print('Texto formatado adicionado com sucesso!')
+
+def main():
+    service = autenticar_google_docs()
+
+    document_id = criar_documento(service)
+
+    texto = [
+        ('Carnes:', {'bold': True, 'fontSize': {'magnitude': 16, 'unit': 'PT'},
+                     'foregroundColor': {'color': {'rgbColor': {'red': 1, 'green': 0, 'blue': 0}}}}),
+        ('- alcatra', {'fontSize': {'magnitude': 10, 'unit': 'PT'}}),
+        ('- cupim', {'fontSize': {'magnitude': 10, 'unit': 'PT'}}),
+        ('- picanha', {'fontSize': {'magnitude': 10, 'unit': 'PT'}}),
+
+        ('Bebidas:', {'bold': True, 'fontSize': {'magnitude': 16, 'unit': 'PT'},
+                      'foregroundColor': {'color': {'rgbColor': {'red': 1, 'green': 0, 'blue': 0}}}}),
+        ('- Cerveja', {'fontSize': {'magnitude': 10, 'unit': 'PT'}}),
+        ('- Agua', {'fontSize': {'magnitude': 10, 'unit': 'PT'}}),
+        ('- Limonada', {'fontSize': {'magnitude': 10, 'unit': 'PT'}}),
+
+        ('Atividades:', {'bold': True, 'fontSize': {'magnitude': 16, 'unit': 'PT'},
+                         'foregroundColor': {'color': {'rgbColor': {'red': 1, 'green': 0, 'blue': 0}}}}),
+        ('- Piscina', {'fontSize': {'magnitude': 10, 'unit': 'PT'}}),
+        ('- Escalada', {'fontSize': {'magnitude': 10, 'unit': 'PT'}}),
+        ('- Diversão', {'fontSize': {'magnitude': 10, 'unit': 'PT'}}),
+    ]
+
+    adicionar_texto(service, document_id, texto)
+
+if __name__ == '__main__':
+    main()
