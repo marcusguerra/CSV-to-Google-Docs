@@ -3,6 +3,12 @@ Este projeto visa automatizar a criação de documentos no Google Docs a partir 
 
 obs: para criar uma conta no google cloud para acessar as API's necessarias demora menos de 10 minutos e seu uso é 100% gratuito,  [tutorial](https://www.youtube.com/watch?v=j7JlI6IAdQ0)
 
+## Video Executando o Código
+
+(apenas 1 minuto)
+
+https://www.youtube.com/watch?v=LqE1xtCNQUw
+
 ## Escolha da Ferramenta
 
 **Python:** Escolhido pela sua facilidade de uso e pela grande disponibilidade de bibliotecas que facilitam a automação e integração com APIs. 
