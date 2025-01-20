@@ -1,13 +1,12 @@
 import pandas as pd
 import re
-import os
-import google.auth
-from google.auth.transport.requests import Request
+from datetime import datetime
 from googleapiclient.discovery import build
 from google_auth_oauthlib.flow import InstalledAppFlow
 
 
 def extrai_ID(link):
+    # separa o link do google sheets em id e link
     padrao = r"(.*?/d/)([^/]+)/edit"
     correspondencia = re.search(padrao, link)
     if correspondencia:
@@ -22,80 +21,107 @@ def le_sheets(link):
     df = pd.read_csv(f"{docs_link}{id}/export?format=csv")
     return df
 
-#le_sheets("https://docs.google.com/spreadsheets/d/1b5v4makJSmBwjxz7qk1uwJyDwQ04mN7tm3-dbumcpYQ/edit?gid=328103558#gid=328103558")
 
 
-def autenticar_google_docs():
+def autenticar_google_docs(credentials_path):
     SCOPES = ['https://www.googleapis.com/auth/documents']
 
     flow = InstalledAppFlow.from_client_secrets_file(
-        'credentials.json', SCOPES)
+        credentials_path, SCOPES)
     creds = flow.run_local_server(port=0)
 
     service = build('docs', 'v1', credentials=creds)
     return service
 
 
-def criar_documento(service):
-    document = service.documents().create().execute()
+def criar_documento(service, nome_documento):
+    document = service.documents().create(body={'title': nome_documento}).execute()
     document_id = document['documentId']
-    print(f'Documento criado com ID: {document_id}')
+    print(f'Documento criado com ID: {document_id} e Nome: {nome_documento}')
     return document_id
 
 
 def adicionar_texto(service, document_id, texto):
     requests = []
+    index = 1
 
     for texto_item, estilo in texto:
-        requests.append({
-            'insertText': {
-                'location': {
-                    'index': 1,
-                },
-                'text': texto_item + '\n',
-            }
-        })
+        if texto_item:  # Verificar se o texto não está vazio
+            requests.append({
+                'insertText': {
+                    'location': {
+                        'index': index,
+                    },
+                    'text': texto_item + '\n',
+                }
+            })
 
-        requests.append({
-            'updateTextStyle': {
-                'range': {
-                    'startIndex': 1,
-                    'endIndex': 1 + len(texto_item),
-                },
-                'textStyle': estilo,
-                'fields': 'bold,fontSize,foregroundColor'
-            }
-        })
+            # Atualizar estilo para o texto inserido
+            requests.append({
+                'updateTextStyle': {
+                    'range': {
+                        'startIndex': index,
+                        'endIndex': index + len(texto_item),
+                    },
+                    'textStyle': estilo,
+                    'fields': 'bold,fontSize,foregroundColor'
+                }
+            })
+
+
+            index += len(texto_item) + 1
 
     service.documents().batchUpdate(documentId=document_id, body={'requests': requests}).execute()
     print('Texto formatado adicionado com sucesso!')
 
-def main():
-    service = autenticar_google_docs()
 
-    document_id = criar_documento(service)
+def processar_dataframe(df, CORES_STATUS):
+    texto = []
+    for status, cor in CORES_STATUS.items():
+        projetos_status = df[df["Status do Projeto"] == status]
+        # le o df e já coloca a cor nos status
+        texto.append(formatar_texto_status(status, cor))
+        for _, projeto in projetos_status.iterrows():
+            texto.extend(formatar_texto_projeto(projeto))
+            # pula uma linha
+            texto.append((" ", {}))
 
-    texto = [
-        ('Carnes:', {'bold': True, 'fontSize': {'magnitude': 16, 'unit': 'PT'},
-                     'foregroundColor': {'color': {'rgbColor': {'red': 1, 'green': 0, 'blue': 0}}}}),
-        ('- alcatra', {'fontSize': {'magnitude': 10, 'unit': 'PT'}}),
-        ('- cupim', {'fontSize': {'magnitude': 10, 'unit': 'PT'}}),
-        ('- picanha', {'fontSize': {'magnitude': 10, 'unit': 'PT'}}),
+    return texto
 
-        ('Bebidas:', {'bold': True, 'fontSize': {'magnitude': 16, 'unit': 'PT'},
-                      'foregroundColor': {'color': {'rgbColor': {'red': 1, 'green': 0, 'blue': 0}}}}),
-        ('- Cerveja', {'fontSize': {'magnitude': 10, 'unit': 'PT'}}),
-        ('- Agua', {'fontSize': {'magnitude': 10, 'unit': 'PT'}}),
-        ('- Limonada', {'fontSize': {'magnitude': 10, 'unit': 'PT'}}),
+def formatar_texto_status(status, cor):
+    #formata os 3 status possiveis por cor e tamanho
+    return (status + ":", {
+        'bold': True,
+        'fontSize': {'magnitude': 16, 'unit': 'PT'},
+        'foregroundColor': {'color': {'rgbColor': cor}}
+    })
 
-        ('Atividades:', {'bold': True, 'fontSize': {'magnitude': 16, 'unit': 'PT'},
-                         'foregroundColor': {'color': {'rgbColor': {'red': 1, 'green': 0, 'blue': 0}}}}),
-        ('- Piscina', {'fontSize': {'magnitude': 10, 'unit': 'PT'}}),
-        ('- Escalada', {'fontSize': {'magnitude': 10, 'unit': 'PT'}}),
-        ('- Diversão', {'fontSize': {'magnitude': 10, 'unit': 'PT'}}),
+def formatar_texto_projeto(projeto):
+
+    return [
+        (projeto['Nome do Projeto'], {'bold': True, 'fontSize': {'magnitude': 14, 'unit': 'PT'}}),
+        (f"Responsável: {projeto['Responsável']}", {'fontSize': {'magnitude': 10, 'unit': 'PT'}}),
+        (f"Prazo Final: {projeto['Prazo Final']}", {'fontSize': {'magnitude': 10, 'unit': 'PT'}}),
+        (f"Descrição: {projeto['Descrição do Projeto']}", {'fontSize': {'magnitude': 10, 'unit': 'PT'}}),
+        (f"Observações: {projeto['Observações Adicionais']}", {'fontSize': {'magnitude': 10, 'unit': 'PT'}}),
+        (f"Dias até Finalização: {projeto['Dias até Finalização']}", {'fontSize': {'magnitude': 10, 'unit': 'PT'}})
     ]
 
-    adicionar_texto(service, document_id, texto)
+def gerar_nome_documento():
+    data_atual = datetime.now().strftime("%d-%m-%Y")
+    nome_documento = f"Project Briefing {data_atual}"
+    return nome_documento
 
-if __name__ == '__main__':
-    main()
+def sheets_to_docs(sheets_link, credentials_path, nome_docs=None):
+    CORES_STATUS = {
+        "Em andamento": {"red": 0, "green": 0, "blue": 1},
+        "Pendente": {"red": 1, "green": 0, "blue": 0},
+        "Concluído": {"red": 0, "green": 1, "blue": 0}
+    }
+    df = le_sheets(sheets_link)
+    if nome_docs is None:
+        nome_docs = gerar_nome_documento()
+    service = autenticar_google_docs(credentials_path)
+    document_id = criar_documento(service, nome_docs)
+    texto = processar_dataframe(df, CORES_STATUS)
+    adicionar_texto(service, document_id, texto)
